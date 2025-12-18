@@ -7,6 +7,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1000, // Aumenta o limite para 1MB para evitar o aviso no log
   },
   server: {
     port: 3000,
