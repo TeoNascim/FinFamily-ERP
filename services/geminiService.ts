@@ -1,10 +1,24 @@
 import { GoogleGenAI } from "@google/genai";
 import { Transaction, AIAnalysisResult } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Função para obter a API KEY de forma segura
+const getApiKey = () => {
+  return process.env.API_KEY || "";
+};
 
 export const getFinancialAdvice = async (transactions: Transaction[], moduleTitle: string): Promise<AIAnalysisResult> => {
+  const apiKey = getApiKey();
+  
+  if (!apiKey) {
+    return {
+      summary: "API Key não configurada no servidor.",
+      tips: ["Configure a variável de ambiente API_KEY no painel do Netlify.", "Reinicie o deploy.", "Consulte a documentação."],
+      riskLevel: "Low"
+    };
+  }
+
   try {
+    const ai = new GoogleGenAI({ apiKey });
     const contextData = JSON.stringify(transactions);
     
     const prompt = `
