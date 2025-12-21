@@ -46,7 +46,6 @@ const App: React.FC = () => {
 
   // --- Auth & Data Loading ---
   useEffect(() => {
-    // 1. Check Session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser({
@@ -59,7 +58,6 @@ const App: React.FC = () => {
       }
     });
 
-    // 2. Listen for Auth Changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser({
@@ -77,8 +75,6 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // --- CRUD Operations with Supabase ---
-
   const fetchTransactions = async (userId: string) => {
     setIsLoading(true);
     try {
@@ -91,7 +87,6 @@ const App: React.FC = () => {
       if (error) throw error;
 
       if (data) {
-        // Map DB snake_case to Frontend camelCase
         const mappedData: Transaction[] = data.map((t: any) => ({
           id: t.id,
           moduleId: t.module_id as ModuleType,
@@ -113,7 +108,6 @@ const App: React.FC = () => {
 
   const handleAddTransaction = async (t: Omit<Transaction, 'id'>) => {
     try {
-      // Get current user ID
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -150,7 +144,7 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error adding transaction:', error);
-      alert('Erro ao salvar transação. Verifique se a tabela existe.');
+      alert('Erro ao salvar transação.');
     }
   };
 
@@ -161,7 +155,7 @@ const App: React.FC = () => {
         amount: updated.amount,
         date: updated.date,
         type: updated.type,
-        module_id: updated.moduleId // ensure mapping
+        module_id: updated.moduleId
       };
 
       const { error } = await supabase
@@ -202,7 +196,12 @@ const App: React.FC = () => {
       .reduce((acc, curr) => curr.type === TransactionType.INCOME ? acc + curr.amount : acc - curr.amount, 0);
   };
 
-  // --- Globals Summary ---
+  // Helper para formatar data sem erro de fuso horário
+  const formatDateSafe = (dateStr: string) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString('pt-BR');
+  };
+
   const globalIncome = transactions
     .filter(t => t.moduleId !== ModuleType.PROJECTION && t.type === TransactionType.INCOME)
     .reduce((acc, t) => acc + t.amount, 0);
@@ -214,8 +213,6 @@ const App: React.FC = () => {
   const globalProvisions = transactions
     .filter(t => t.moduleId === ModuleType.PROJECTION)
     .reduce((acc, t) => acc + t.amount, 0);
-
-  // --- Rendering ---
 
   if (isLoading) {
     return (
@@ -248,8 +245,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
-      
-      {/* Navbar */}
       <nav className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-40 backdrop-blur-md bg-white/80">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
@@ -280,19 +275,13 @@ const App: React.FC = () => {
              <div className="h-10 w-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold border-2 border-white shadow-sm">
                {user.name.charAt(0).toUpperCase()}
              </div>
-
-             <button 
-               onClick={handleLogout}
-               className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-               title="Sair"
-             >
+             <button onClick={handleLogout} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all" title="Sair">
                <Icons.LogOut size={20} />
              </button>
           </div>
         </div>
       </nav>
 
-      {/* Dashboard Content */}
       <main className="flex-1 p-6 lg:p-12 max-w-7xl mx-auto w-full">
         <div className="mb-10 text-center md:text-left flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
@@ -318,7 +307,6 @@ const App: React.FC = () => {
           ))}
         </div>
 
-        {/* Recent Activity Section */}
         <div className="mt-12">
           <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
             <Icons.Calendar size={20} className="text-slate-400" />
@@ -344,7 +332,7 @@ const App: React.FC = () => {
                             {MODULES.find(m => m.id === t.moduleId)?.title}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-slate-500 text-sm">{new Date(t.date).toLocaleDateString()}</td>
+                        <td className="px-6 py-4 text-slate-500 text-sm">{formatDateSafe(t.date)}</td>
                         <td className={`px-6 py-4 text-right font-medium ${t.type === TransactionType.INCOME ? 'text-emerald-600' : 'text-slate-600'}`}>
                           {t.type === TransactionType.INCOME ? '+' : '-'} R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
@@ -360,7 +348,6 @@ const App: React.FC = () => {
              </div>
           </div>
         </div>
-
       </main>
     </div>
   );
