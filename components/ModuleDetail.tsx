@@ -76,19 +76,27 @@ export const ModuleDetail: React.FC<ModuleDetailProps> = ({
     return month === (currentDate.getMonth() + 1) && year === currentDate.getFullYear();
   });
 
-  // Cálculo do saldo total do módulo no mês
-  const filteredTotalAmount = filteredTransactions.reduce((acc, curr) => 
-    curr.type === TransactionType.INCOME ? acc + curr.amount : acc - curr.amount, 0
-  );
-
-  // Helper para normalizar strings de comparação
-  const normalize = (str: string) => str.toLowerCase().trim();
-
   // Busca todas as transações de TODOS os módulos para o mês selecionado (para cruzamento de dados)
   const allCurrentMonthTransactions = allTransactions.filter(t => {
     const [year, month] = t.date.split('-').map(Number);
     return month === (currentDate.getMonth() + 1) && year === currentDate.getFullYear();
   });
+
+  // --- Cálculos de Resumo Mensal ---
+  const monthlyIncome = filteredTransactions
+    .filter(t => t.type === TransactionType.INCOME)
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const monthlyExpenses = filteredTransactions
+    .filter(t => t.type === TransactionType.EXPENSE)
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const monthlyProvisions = allCurrentMonthTransactions
+    .filter(t => t.moduleId === ModuleType.PROJECTION)
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  // Helper para normalizar strings de comparação
+  const normalize = (str: string) => str.toLowerCase().trim();
 
   // --- Lógica de Acumulado e Provisão ---
   
@@ -171,7 +179,7 @@ export const ModuleDetail: React.FC<ModuleDetailProps> = ({
   return (
     <div className="min-h-screen bg-slate-50 animate-fade-in pb-20">
       {/* Header */}
-      <div className={`bg-${module.color}-600 pb-24 pt-8 px-6 lg:px-12 transition-colors duration-500`}>
+      <div className={`bg-${module.color}-600 pb-32 pt-8 px-6 lg:px-12 transition-colors duration-500`}>
         <div className="max-w-7xl mx-auto">
           <button 
             onClick={onBack}
@@ -181,16 +189,28 @@ export const ModuleDetail: React.FC<ModuleDetailProps> = ({
             Voltar para Dashboard
           </button>
           
-          <div className="flex flex-col md:flex-row md:items-end justify-between">
-            <div>
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-8">
+            <div className="flex-1">
               <h1 className="text-3xl md:text-4xl font-bold text-white flex items-center gap-3">
                 {module.title}
               </h1>
               <p className="text-white/70 mt-2 max-w-xl">{module.description}</p>
             </div>
-            <div className="mt-6 md:mt-0 text-white md:text-right">
-              <p className="text-sm opacity-80 uppercase tracking-widest">Saldo em {formatMonthYear(currentDate)}</p>
-              <p className="text-4xl font-bold">R$ {filteredTotalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            
+            {/* 3 Valores Summary Mini-Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto">
+               <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl text-white min-w-[160px]">
+                  <p className="text-[10px] font-bold uppercase opacity-70 tracking-wider mb-1">Receitas</p>
+                  <p className="text-xl font-bold">R$ {monthlyIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+               </div>
+               <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl text-white min-w-[160px]">
+                  <p className="text-[10px] font-bold uppercase opacity-70 tracking-wider mb-1">Gastos</p>
+                  <p className="text-xl font-bold text-red-100">R$ {monthlyExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+               </div>
+               <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl text-white min-w-[160px]">
+                  <p className="text-[10px] font-bold uppercase opacity-70 tracking-wider mb-1">Provisionado</p>
+                  <p className="text-xl font-bold text-amber-100">R$ {monthlyProvisions.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+               </div>
             </div>
           </div>
         </div>

@@ -202,6 +202,19 @@ const App: React.FC = () => {
       .reduce((acc, curr) => curr.type === TransactionType.INCOME ? acc + curr.amount : acc - curr.amount, 0);
   };
 
+  // --- Globals Summary ---
+  const globalIncome = transactions
+    .filter(t => t.moduleId !== ModuleType.PROJECTION && t.type === TransactionType.INCOME)
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const globalExpenses = transactions
+    .filter(t => t.moduleId !== ModuleType.PROJECTION && t.type === TransactionType.EXPENSE)
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const globalProvisions = transactions
+    .filter(t => t.moduleId === ModuleType.PROJECTION)
+    .reduce((acc, t) => acc + t.amount, 0);
+
   // --- Rendering ---
 
   if (isLoading) {
@@ -238,22 +251,33 @@ const App: React.FC = () => {
       
       {/* Navbar */}
       <nav className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-40 backdrop-blur-md bg-white/80">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
             <div className="bg-blue-600 p-2 rounded-lg text-white">
               <Icons.PieChart size={24} />
             </div>
             <span className="text-xl font-bold tracking-tight text-slate-800">FinFamily<span className="text-blue-600">ERP</span></span>
           </div>
-          <div className="flex items-center gap-4">
-             <div className="text-right hidden sm:block">
-               <p className="text-xs text-slate-500 font-medium uppercase">Olá, {user.name.split(' ')[0]}</p>
-               <p className="text-sm font-bold text-slate-800">
-                 Saldo: R$ {transactions.reduce((acc, curr) => curr.type === TransactionType.INCOME ? acc + curr.amount : acc - curr.amount, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-               </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-4 md:gap-8 flex-1 max-w-2xl mx-auto bg-slate-50 py-2 px-6 rounded-2xl border border-slate-100">
+             <div className="text-center">
+               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Receitas</p>
+               <p className="text-sm font-bold text-emerald-600">R$ {globalIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
              </div>
-             
-             <div className="h-10 w-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">
+             <div className="w-px h-6 bg-slate-200 hidden sm:block"></div>
+             <div className="text-center">
+               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Gastos</p>
+               <p className="text-sm font-bold text-red-600">R$ {globalExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+             </div>
+             <div className="w-px h-6 bg-slate-200 hidden sm:block"></div>
+             <div className="text-center">
+               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Provisionado</p>
+               <p className="text-sm font-bold text-amber-600">R$ {globalProvisions.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+             </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+             <div className="h-10 w-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold border-2 border-white shadow-sm">
                {user.name.charAt(0).toUpperCase()}
              </div>
 
@@ -270,9 +294,17 @@ const App: React.FC = () => {
 
       {/* Dashboard Content */}
       <main className="flex-1 p-6 lg:p-12 max-w-7xl mx-auto w-full">
-        <div className="mb-10 text-center md:text-left">
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">Painel de Controle</h1>
-          <p className="text-slate-500">Bem-vindo de volta! Aqui está o resumo das finanças da sua família.</p>
+        <div className="mb-10 text-center md:text-left flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-800 mb-2">Painel de Controle</h1>
+            <p className="text-slate-500">Bem-vindo de volta, {user.name.split(' ')[0]}! Resumo das finanças familiares.</p>
+          </div>
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+             <p className="text-xs text-slate-400 font-bold uppercase">Saldo Líquido</p>
+             <p className={`text-2xl font-black ${(globalIncome - globalExpenses) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+               R$ {(globalIncome - globalExpenses).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+             </p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
