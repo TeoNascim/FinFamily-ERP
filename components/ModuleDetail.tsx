@@ -58,7 +58,6 @@ export const ModuleDetail: React.FC<ModuleDetailProps> = ({
     setDate(new Date().toISOString().split('T')[0]);
   };
 
-  // --- Date Navigation Logic ---
   const goToPreviousMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   };
@@ -71,20 +70,67 @@ export const ModuleDetail: React.FC<ModuleDetailProps> = ({
     return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
   };
 
-  // --- Filtering Logic ---
+  // Filtragem das transações do módulo atual para o mês selecionado
   const filteredTransactions = transactions.filter(t => {
-    // Parse UTC date correctly to avoid timezone issues causing wrong month mapping
-    const tDate = new Date(t.date);
-    // Adjust logic to match month/year regardless of day/timezone drift
-    // Since input is YYYY-MM-DD string, we can split it safely
     const [year, month] = t.date.split('-').map(Number);
-    
     return month === (currentDate.getMonth() + 1) && year === currentDate.getFullYear();
   });
 
+  // Cálculo do saldo total do módulo no mês
   const filteredTotalAmount = filteredTransactions.reduce((acc, curr) => 
     curr.type === TransactionType.INCOME ? acc + curr.amount : acc - curr.amount, 0
   );
+
+  // Helper para normalizar strings de comparação
+  const normalize = (str: string) => str.toLowerCase().trim();
+
+  // Busca todas as transações de TODOS os módulos para o mês selecionado (para cruzamento de dados)
+  const allCurrentMonthTransactions = allTransactions.filter(t => {
+    const [year, month] = t.date.split('-').map(Number);
+    return month === (currentDate.getMonth() + 1) && year === currentDate.getFullYear();
+  });
+
+  // --- Lógica de Acumulado e Provisão ---
+  
+  // Se estivermos em um módulo comum, buscamos a meta no módulo de PROJEÇÃO
+  const getProjectionData = (transactionTitle: string) => {
+    if (module.id === ModuleType.PROJECTION) return null;
+    
+    // Encontrar a provisão correspondente
+    const projection = allTransactions.find(p => 
+      p.moduleId === ModuleType.PROJECTION && 
+      normalize(p.title) === normalize(transactionTitle)
+    );
+
+    if (!projection) return null;
+
+    // Calcular quanto JÁ FOI GASTO no total para esse título no mês atual (soma de todas as ocorrências)
+    const totalSpent = filteredTransactions
+      .filter(t => normalize(t.title) === normalize(transactionTitle))
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    return {
+      goalAmount: projection.amount,
+      currentTotal: totalSpent,
+      isOver: totalSpent > projection.amount
+    };
+  };
+
+  // Se estivermos no módulo de PROJEÇÃO, buscamos quanto já foi realizado nos OUTROS módulos
+  const getRealizationData = (projection: Transaction) => {
+    if (module.id !== ModuleType.PROJECTION) return null;
+
+    // Soma tudo o que foi gasto/recebido com esse nome nos outros módulos neste mês
+    const totalRealized = allCurrentMonthTransactions
+      .filter(t => t.moduleId !== ModuleType.PROJECTION && normalize(t.title) === normalize(projection.title))
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    return {
+      goalAmount: projection.amount,
+      currentTotal: totalRealized,
+      isOver: totalRealized > projection.amount
+    };
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,7 +159,6 @@ export const ModuleDetail: React.FC<ModuleDetailProps> = ({
     setAiLoading(true);
     setAiResult(null);
     try {
-      // Send only filtered transactions for AI context relevance
       const result = await getFinancialAdvice(filteredTransactions, module.title);
       setAiResult(result);
     } catch (e) {
@@ -121,14 +166,6 @@ export const ModuleDetail: React.FC<ModuleDetailProps> = ({
     } finally {
       setAiLoading(false);
     }
-  };
-
-  // Get all projection items to compare (Projections usually repeat monthly, but here we match strictly for simplicity or just by title)
-  const projectionItems = allTransactions.filter(t => t.moduleId === ModuleType.PROJECTION);
-
-  const getProjectionMatch = (transaction: Transaction) => {
-    if (module.id === ModuleType.PROJECTION) return null;
-    return projectionItems.find(p => p.title.toLowerCase().trim() === transaction.title.toLowerCase().trim());
   };
 
   return (
@@ -160,22 +197,16 @@ export const ModuleDetail: React.FC<ModuleDetailProps> = ({
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 -mt-16">
-        
-        {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* Left Column: List & Actions */}
+          {/* Coluna Esquerda: Lista e Gráfico */}
           <div className="lg:col-span-2 space-y-6">
-            
-            {/* Chart Card */}
             <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
                   <Icons.LineChart size={20} className="text-slate-400"/>
                   Fluxo Mensal
                 </h3>
-                
-                {/* Month Selector */}
                 <div className="flex items-center gap-3 bg-slate-50 rounded-lg p-1">
                   <button onClick={goToPreviousMonth} className="p-1 hover:bg-white hover:shadow-sm rounded-md transition-all text-slate-500">
                      <Icons.ArrowLeft size={16} />
@@ -191,7 +222,6 @@ export const ModuleDetail: React.FC<ModuleDetailProps> = ({
               <ChartSection data={filteredTransactions} color={module.color} />
             </div>
 
-            {/* Transactions List */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
               <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-slate-800">Transações</h3>
@@ -212,9 +242,9 @@ export const ModuleDetail: React.FC<ModuleDetailProps> = ({
                   </div>
                 )}
                 {filteredTransactions.map(t => {
-                  const projection = getProjectionMatch(t);
-                  const percentage = projection ? Math.min((t.amount / projection.amount) * 100, 100) : 0;
-                  const isOverBudget = projection && t.amount > projection.amount;
+                  // Lógica de Comparação com Metas/Provisões
+                  const data = module.id === ModuleType.PROJECTION ? getRealizationData(t) : getProjectionData(t.title);
+                  const percentage = data ? Math.min((data.currentTotal / data.goalAmount) * 100, 100) : 0;
 
                   return (
                     <div key={t.id} className="p-4 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between group gap-4">
@@ -226,30 +256,31 @@ export const ModuleDetail: React.FC<ModuleDetailProps> = ({
                           <p className="font-medium text-slate-800">{t.title}</p>
                           <p className="text-xs text-slate-500">{new Date(t.date).toLocaleDateString()}</p>
                           
-                          {/* Projection Progress Bar */}
-                          {projection && (
-                            <div className="mt-2 w-full max-w-xs">
+                          {/* Barra de Progresso de Meta (Acumulada) */}
+                          {data && (
+                            <div className="mt-3 w-full max-w-sm">
                               <div className="flex justify-between text-[10px] uppercase font-bold text-slate-400 mb-1">
                                 <span>
-                                  Meta: R$ {projection.amount.toLocaleString('pt-BR')}
+                                  {module.id === ModuleType.PROJECTION ? 'Realizado' : 'Progresso'}: 
+                                  R$ {data.currentTotal.toLocaleString('pt-BR')} de R$ {data.goalAmount.toLocaleString('pt-BR')}
                                 </span>
-                                <span className={isOverBudget ? 'text-red-500' : 'text-emerald-500'}>
-                                  {Math.round((t.amount / projection.amount) * 100)}%
+                                <span className={data.isOver ? 'text-red-500' : 'text-emerald-500'}>
+                                  {Math.round((data.currentTotal / data.goalAmount) * 100)}%
                                 </span>
                               </div>
                               <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                                 <div 
-                                  className={`h-full rounded-full transition-all duration-500 ${
-                                    isOverBudget ? 'bg-red-500' : 
+                                  className={`h-full rounded-full transition-all duration-700 ease-out ${
+                                    data.isOver ? 'bg-red-500' : 
                                     t.type === TransactionType.INCOME ? 'bg-emerald-500' : 'bg-blue-500'
                                   }`} 
                                   style={{ width: `${percentage}%` }}
                                 />
                               </div>
-                              <p className="text-[10px] text-slate-400 mt-1">
-                                {isOverBudget 
-                                  ? `Excedeu R$ ${(t.amount - projection.amount).toLocaleString('pt-BR')}`
-                                  : `Faltam R$ ${(projection.amount - t.amount).toLocaleString('pt-BR')}`
+                              <p className="text-[10px] font-medium mt-1">
+                                {data.isOver 
+                                  ? <span className="text-red-500">Excedeu R$ {(data.currentTotal - data.goalAmount).toLocaleString('pt-BR')} do limite!</span>
+                                  : <span className="text-slate-400">Restam R$ {(data.goalAmount - data.currentTotal).toLocaleString('pt-BR')} da provisão.</span>
                                 }
                               </p>
                             </div>
@@ -277,10 +308,8 @@ export const ModuleDetail: React.FC<ModuleDetailProps> = ({
             </div>
           </div>
 
-          {/* Right Column: AI & Stats */}
+          {/* Coluna Direita: IA e Stats */}
           <div className="space-y-6">
-            
-            {/* AI Advisor Card */}
             <div className="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-2xl shadow-lg p-6 text-white relative overflow-hidden">
                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
                <div className="relative z-10">
@@ -340,7 +369,6 @@ export const ModuleDetail: React.FC<ModuleDetailProps> = ({
                </div>
             </div>
 
-            {/* Quick Stats */}
             <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Resumo do Mês</h3>
                <div className="space-y-4">
